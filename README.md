@@ -1,67 +1,70 @@
 # Donetick widgets for GlassHome
 
-Three separate tiles, using GlassHome's glass style and your existing Donetick Home Assistant integration:
+Three neutral glass tiles that match the NAS widgets' compact headings, typography and spacing:
 
 | Tile | Tasks shown |
 | --- | --- |
-| Donetick Today | Due today, optionally including overdue tasks |
-| Donetick Next 7 Days | Tomorrow through the seventh day, using Home Assistant's timezone |
-| Donetick Always Available | Tasks with Donetick's **Always** frequency |
+| Today | Today, optionally including overdue tasks |
+| Next 7 Days | Tomorrow through the seventh calendar day, using Home Assistant's timezone |
+| Always Available | Tasks with Donetick's **Always** frequency |
 
-Use each tile's **settings button** to select a Donetick user for **Single tap**, **Double tap**, and **Long hold**. Choose **Disabled** for any gesture you do not want. For example: single tap for Noa, long hold for you, double tap disabled. The long hold duration defaults to **700 milliseconds** and is adjustable from 400 to 2000 milliseconds.
+## Install and connect
 
-When double tap is assigned, a single tap waits **350 milliseconds** for a second tap. A double tap records only the double-tap user's completion. A long hold records only the long-hold user's completion. Scrolling cancels the press. A confirmation names the person credited; failures appear on the tile. Always-available tasks remain available for future completions.
+Use a current [Donetick Home Assistant integration](https://github.com/donetick/donetick-hass-integration). It must expose `tasks`, `circle_members` and `config_entry_id` on its to-do entities, and support `donetick.complete_task` with `completed_by_username`.
 
-With a keyboard, Enter or Space uses single tap, Shift+Enter uses double tap, and Shift+F10 or the context-menu key uses long hold. Pressing Enter or Space twice quickly also uses double tap when it is assigned.
-
-## Prepare Home Assistant
-
-Use a current [Donetick Home Assistant integration](https://github.com/donetick/donetick-hass-integration). The selected `todo` entity must expose `tasks`, `circle_members`, and `config_entry_id`, and the integration must provide `donetick.complete_task` with `completed_by_username` support.
-
-In the Donetick integration's options, set **Show Due In** to at least **8 days**, or **0** for all tasks. This allows the upcoming tile to include the whole seventh calendar day. Enable **Show No Due Date** so always-available tasks are included. Choose the **All Tasks** entity in each tile if both people should see all household tasks.
-
-## Connect from your Linux host
-
-From the repository on the host running GlassHome:
+On the Linux host running GlassHome:
 
 ```bash
-cd /home/thorbs/buffalo-nas-widgets/glasshome-donetick
+git clone https://github.com/TThorburn/DoneTick-GlassHome.git
+cd DoneTick-GlassHome
 bun install
+bun run build
 bun run widget connect http://localhost:3123
 ```
 
-Use your actual GlassHome address if it runs elsewhere. Keep the connect process running while using this development connection. This project is separate from the NAS widgets; run it from `glasshome-donetick`, rather than `glasshome`.
+If already cloned, open that folder and run `git pull --ff-only` first. Use your actual GlassHome URL if it runs on another machine. Keep the connect process running while using the development connection. The NAS project can keep its own connection running in another terminal.
 
-Add **Donetick Today**, **Donetick Next 7 Days**, and **Donetick Always Available** from GlassHome's widget picker. In each tile's settings:
+Add each Donetick tile from GlassHome's widget picker. The initial placement form has only an optional title and task list. Leave the list blank to detect **All Tasks** automatically. If more than one possible All Tasks list exists, choose one explicitly. Ordinary to-do lists are excluded from discovery.
 
-1. Select the Donetick to-do entity.
-2. Save after selecting or changing the task list, then reopen the tile's settings button to load its users.
-3. Select the person for each gesture from the dropdowns, or choose Disabled.
-4. Choose whether Today's tile includes overdue tasks.
+## Automatic user discovery
 
-The dropdowns read the active members from the selected entity's `circle_members` attribute and display each person's name and username. Each completion explicitly sends the selected Donetick username through Home Assistant. An unavailable user cannot receive a completion. At least one gesture must have an active user selected. Each tile saves its own assignments. Existing single-tap and hold usernames are retained when they still match active members; double tap starts disabled.
+After placement, a tile needing assignment opens **People and gestures** automatically when active members are available. Its dropdowns are populated from the selected Donetick list, showing each person's display name and username. Inactive members are excluded. Choose a person or **Disabled** for each gesture:
 
-Tasks update from Home Assistant's shared live state. Their history and completion credit stay in Donetick, so refreshing the dashboard does not reset the underlying tasks. Home Assistant's Donetick polling determines how quickly changes made elsewhere appear.
+- **Single tap** — for example, Noa.
+- **Double tap** — optional.
+- **Long hold** — for example, you.
 
-## Appearance settings
+Selections save immediately. There is no username typing, extra save button, or save-and-reopen step. A gear button opens these controls later. Holding the **tile background** opens the same controls; holding a **task row** completes that task as the selected long-hold person.
 
-The settings button stays available on smaller tiles. Each tile saves its own appearance and completion gestures:
+User details can be recovered from another list belonging to the same Donetick connection when a project list lacks its own member metadata. They are never borrowed from another Donetick server. If no members are reported anywhere, reload the Donetick integration in Home Assistant to refresh its circle members. The widget cannot assign credit until Home Assistant supplies an active matching user.
 
-| Setting | Options |
-| --- | --- |
-| Accent colour | Neutral, home accent, blue, green, amber |
-| Row spacing | Comfortable or compact |
-| Task text size | Small, normal, large |
-| Task order | Due date, alphabetical, highest points |
-| Group tasks by day | On or off; overdue tasks appear first |
-| Visible details | Toggle points, due dates, and the gesture guide |
-| Maximum visible tasks | 1–100; the tile reports how many tasks are hidden |
+Each completion explicitly sends that person's Donetick username and the task's configuration entry to Home Assistant. It does not guess a performer from task ownership. Switching connections clears the gesture assignments so a completion cannot accidentally credit a user on the wrong server.
 
-When date grouping is enabled, sorting applies within each date group. Always Available stays a single list. The list scrolls while the header and settings stay in place. The gesture guide is hidden automatically on very narrow or short tiles to preserve space for tasks. Colours follow your GlassHome theme, including light and dark mode. A ring fills during a long hold, and successful completion names the person credited.
+Hold duration defaults to **700 ms** (adjustable from 400–2000 ms). Assigning double tap adds a **350 ms** single-tap delay so double tap records one completion. Scrolling cancels the press. Keyboard: Enter or Space taps, Shift+Enter double taps, and Shift+F10 or the context-menu key holds.
 
-## Build and check
+## Appearance and display
 
-Use Node.js 24 or later for the included tests, and Bun for the GlassHome CLI.
+Open **People and gestures → Appearance and display**, or edit the tile through GlassHome, to adjust the appearance. The widget's Edit panel includes:
+
+- Neutral NAS styling, home accent, blue, green or amber.
+- Compact or comfortable rows; small, normal or large task text.
+- Due-date, alphabetical or highest-points ordering.
+- Date grouping and optional points, dates and gesture guide.
+- Overdue tasks in Today and a visible-task limit of 1–100.
+
+Sorting applies within groups when grouping is enabled. Extra tasks remain in Donetick; the tile reports how many are hidden. Always Available remains one list and its tasks remain available after completion. The task list scrolls independently of the header. GlassHome supplies the material, theme and light/dark mode.
+
+Upgrading from 0.3.x retains saved list and user assignments. The old default blue wash and oversized spacing change to the neutral, compact NAS style. Other custom accent choices are retained; appearance settings remain adjustable.
+
+## Home Assistant task coverage
+
+In Donetick integration options, set **Show Due In** to at least **8 days**, or **0** for all tasks, to include the entire seventh calendar day. Enable **Show No Due Date** for always-available tasks. Use the All Tasks list to include everyone's tasks.
+
+Tasks and completion history remain in Donetick. Home Assistant's polling controls how quickly changes made elsewhere appear.
+
+## Build and test
+
+Use Node.js 24+ for the tests, and Bun for the GlassHome CLI.
 
 ```bash
 bun install
@@ -71,6 +74,6 @@ bun run build
 bun run widget validate
 ```
 
-The build produces three widget bundles and `dist/registry.json`. Installation and community distribution follow GlassHome's current widget publishing workflow; building alone does not upload them.
+The build produces three bundles and `dist/registry.json`; building does not publish them to the community.
 
-For a local layout preview with sample tasks, run `bun run preview:layout`, then open `http://127.0.0.1:4178/tests/visual/index.html`. Add `?theme=dark&density=compact` to check dark mode and compact rows. This test page is disconnected from Home Assistant; its completion messages simulate success and do not complete real tasks. It is not included in the widget bundles. GlassHome supplies the surrounding material and theme when the widgets run in the dashboard.
+For a local preview disconnected from Home Assistant, run `bun run preview:layout` and open `http://127.0.0.1:4178/tests/visual/index.html`. Add `?setup` to exercise automatic discovery and the user dropdowns, or `?theme=dark&width=250&height=360` for small dark tiles. All tasks and completion messages on this test page are simulated. The test adapter is excluded from production bundles.

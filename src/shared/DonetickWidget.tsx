@@ -1,5 +1,5 @@
 import {
-  Button, defineConfig, field, Icon, useEntity, useHassConfig, useService,
+  Button, byDomain, defineConfig, field, Icon, useEntities, useEntity, useHassConfig, useService,
   useWidgetGestures, useWidgetContext, useWidgetDialog, Widget, WidgetDialog, type Infer,
   ResponsiveDialog, ResponsiveDialogBody, ResponsiveDialogContent, ResponsiveDialogDescription,
   ResponsiveDialogFooter, ResponsiveDialogHeader, ResponsiveDialogTitle, SchemaForm,
@@ -7,46 +7,34 @@ import {
 } from "@glasshome/widget-sdk";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 
-import { dayKey, membersFrom, resolveMember, selectTasks, tasksFrom, type Task, type View, type Member } from "./tasks";
+import { dayKey, resolveMember, selectTasks, tasksFrom, type Task, type View, type Member } from "./tasks";
 import { createCompletionGestures, gestureLabels, type CompletionGesture } from "./gestures";
 import {dueLabel, groupTasks, orderTasks} from "./presentation";
+import {autoList, donetickLists, listMembers, upgradeConfig, type TaskList} from "./discovery";
+import {People, type Assignments} from "./People";
 import "./tasks.css";
 
-export const configSchema = defineConfig({
+const appearanceSchema = defineConfig({
   title: field.title(),
-  list: field.entity("todo", {title: "Donetick task list", description: "Choose All Tasks to include everyone."}),
-  tapUsername: field.text({title: "Single tap user", description: "Use the tile's settings button to select a Donetick user.", default: "noa"}),
-  doubleUsername: field.text({title: "Double tap user"}),
-  holdUsername: field.text({title: "Long hold user"}),
-  holdDelay: field.number({title: "Long hold duration (milliseconds)", min: 400, max: 2000, default: 700}),
+  list: field.entity("todo", {title: "Donetick task list (optional)", description: "Leave blank to detect All Tasks automatically. Choose a list if you have multiple Donetick connections."}),
   includeOverdue: field.toggle({title: "Include overdue tasks in Today", default: true}),
   tone: field.choice(["neutral", "accent", "info", "success", "warning"] as const, {
-    title: "Accent colour", default: "info", labels: {neutral: "Neutral", accent: "Home accent", info: "Blue", success: "Green", warning: "Amber"},
+    title: "Accent colour", default: "neutral", labels: {neutral: "Match NAS tiles", accent: "Home accent", info: "Blue", success: "Green", warning: "Amber"},
   }),
-  density: field.choice(["comfortable", "compact"] as const, {title: "Row spacing", default: "comfortable", labels: {comfortable: "Comfortable", compact: "Compact"}}),
-  textSize: field.choice(["small", "normal", "large"] as const, {title: "Task text size", default: "normal", labels: {small: "Small", normal: "Normal", large: "Large"}}),
+  density: field.choice(["comfortable", "compact"] as const, {title: "Row spacing", default: "compact", labels: {comfortable: "Comfortable", compact: "Compact"}}),
+  textSize: field.choice(["small", "normal", "large"] as const, {title: "Task text size", default: "small", labels: {small: "Match NAS tiles", normal: "Normal", large: "Large"}}),
   sortOrder: field.choice(["due", "name", "points"] as const, {title: "Task order", default: "due", labels: {due: "Due date", name: "Alphabetical", points: "Highest points"}}),
   groupByDate: field.toggle({title: "Group tasks by day", description: "Sort order applies within each group. Always Available remains a single list.", default: true}),
   showPoints: field.toggle({title: "Show task points", default: true}),
   showDates: field.toggle({title: "Show due dates on rows", default: true}),
   showGestures: field.toggle({title: "Show gesture guide", default: true}),
   taskLimit: field.number({title: "Maximum visible tasks", description: "Extra tasks stay in Donetick; the tile shows how many are hidden.", min: 1, max: 100, default: 30}),
-});
-export type Config = Infer<typeof configSchema>;
-
-function settingsSchema(members: Member[]) {
-  // A nonempty sentinel keeps the host's Select from displaying a placeholder.
-  // Whitespace-only usernames are excluded from active members.
-  const choices = [" ", ...new Set(members.map(member => member.username))];
-  const labels = Object.fromEntries([[" ", "Disabled"], ...members.map(member =>
-    [member.username, `${member.name} (@${member.username})`])]);
-  return defineConfig({
-    ...configSchema.shape,
-    tapUsername: field.choice(choices, {title: "Single tap user", labels, default: " "}),
-    doubleUsername: field.choice(choices, {title: "Double tap user", labels, default: " "}),
-    holdUsername: field.choice(choices, {title: "Long hold user", labels, default: " "}),
-  });
-}
+}).passthrough();
+// The placement dialog stays short; live users and appearance have their own
+// controls after mounting. Passthrough preserves those saved runtime settings.
+export const configSchema = defineConfig({title: appearanceSchema.shape.title, list: appearanceSchema.shape.list}).passthrough();
+export type Config = Partial<Infer<typeof appearanceSchema>> & Assignments;
+export const migrateConfig = (config: Record<string, unknown>, fromVersion: number) => appearanceSchema.parse(upgradeConfig(config, fromVersion));
 
 const dialogParts = {
   ResponsiveDialog, ResponsiveDialogContent, ResponsiveDialogHeader, ResponsiveDialogTitle,
@@ -142,8 +130,8 @@ function TaskAction(props: {
   );
 }
 
-function TaskContent(props: {config: Config; view: View; openSettings: () => void}) {
-  const entity = useEntity(() => props.config.list?.[0] ?? "");
+function TaskContent(props: {config: Config; view: View; entity: () => TaskList | undefined; members: () => Member[]; openSettings: () => void; openAppearance: () => void; choosingList: boolean}) {
+  const entity = props.entity;
   const hass = useHassConfig();
   const {callService} = useService();
   const [now, setNow] = createSignal(new Date());
@@ -156,7 +144,7 @@ function TaskContent(props: {config: Config; view: View; openSettings: () => voi
   });
   const timezone = () => hass()?.time_zone || "Europe/London";
   const all = createMemo(() => tasksFrom(entity()?.attributes.tasks));
-  const members = createMemo(() => membersFrom(entity()?.attributes.circle_members));
+  const members = props.members;
   const usernames = (): Record<CompletionGesture, string | undefined> => ({
     tap: props.config.tapUsername, double: props.config.doubleUsername, hold: props.config.holdUsername,
   });
@@ -169,7 +157,7 @@ function TaskContent(props: {config: Config; view: View; openSettings: () => voi
   const online = () => !!entity() && !["unavailable", "unknown"].includes(entity()!.state);
   const ready = () => online() && typeof entry() === "string" && assigned().length > 0;
   const tasks = createMemo(() => selectTasks(
-    all(), props.view, now(), timezone(), props.config.includeOverdue,
+    all(), props.view, now(), timezone(), props.config.includeOverdue ?? true,
   ));
   const ordered = createMemo(() => orderTasks(tasks(), props.config.sortOrder ?? "due", timezone()));
   const groups = createMemo(() => groupTasks(ordered(), props.view, props.config.groupByDate ?? true, now(), timezone()));
@@ -184,7 +172,6 @@ function TaskContent(props: {config: Config; view: View; openSettings: () => voi
   });
   const overdue = (task: Task) => !!task.due && (dayKey(task.due, timezone()) ?? "9999") < dayKey(now(), timezone())!;
   const overdueCount = () => tasks().filter(overdue).length;
-  const gestureIcons: Record<CompletionGesture, string> = {tap: "mdi:gesture-tap", double: "mdi:gesture-double-tap", hold: "mdi:gesture-tap-hold"};
 
   async function complete(task: Task, who: CompletionGesture) {
     if (!ready()) return;
@@ -214,23 +201,22 @@ function TaskContent(props: {config: Config; view: View; openSettings: () => voi
   return (
     <Widget.Content class="dt-content" >
       <div class="dt-heading">
-        <Widget.Head icon={ICONS[props.view]} name={props.config.title || TITLES[props.view]} active={tasks().length > 0}
-          eyebrow={props.view === "week" ? "Starting tomorrow" : props.view === "always" ? "Ready whenever you are" : new Intl.DateTimeFormat("en-GB", {timeZone: timezone(), weekday: "long", day: "numeric", month: "short"}).format(now())} />
-        <Button variant="ghost" size="icon" aria-label="Task widget settings" onPointerDown={(event: PointerEvent) => event.stopPropagation()} onClick={() => props.openSettings()}><Icon icon="mdi:cog-outline" width={18} /></Button>
+        <h2>{props.config.title || TITLES[props.view]}</h2>
+        <div class="dt-heading-actions"><Icon icon={ICONS[props.view]} width={18} /><Button variant="ghost" size="icon" aria-label="People and gestures" onPointerDown={(event: PointerEvent) => event.stopPropagation()} onClick={() => props.openSettings()}><Icon icon="mdi:cog-outline" width={16} /></Button></div>
       </div>
       <Show when={online() && Array.isArray(entity()?.attributes.tasks)}>
-        <div class="dt-summary"><span><strong>{tasks().length}</strong> {tasks().length === 1 ? "task" : "tasks"}{props.view === "week" ? " coming up" : props.view === "always" ? " available" : " to do"}</span><Show when={overdueCount()}><span class="dt-overdue">{overdueCount()} overdue</span></Show></div>
+        <div class="dt-summary"><span><strong>{tasks().length}</strong> {tasks().length === 1 ? "task" : "tasks"}{props.view === "week" ? " · from tomorrow" : props.view === "always" ? " · always available" : " · today"}</span><Show when={overdueCount()}><span class="dt-overdue">{overdueCount()} overdue</span></Show></div>
       </Show>
       <Show when={props.config.showGestures !== false && assigned().length}>
-        <div class="dt-legend" aria-label="Completion gestures"><For each={assigned()}>{who => <Widget.Chip icon={gestureIcons[who]}><span title={gestureLabels[who]}>{gestureLabels[who]} · {performer(who)!.name}</span></Widget.Chip>}</For></div>
+        <p class="dt-legend dt-meta" aria-label="Completion gestures">{hint()}</p>
       </Show>
-      <Show when={!props.config.list?.[0]}><p>Select your Donetick task list in widget settings.</p></Show>
-      <Show when={props.config.list?.[0] && !online()}><p role="status">Task list unavailable.</p></Show>
+      <Show when={!entity()}><div class="dt-setup"><p class="dt-meta">{props.choosingList ? "More than one Donetick list found. Choose which list to use." : "Looking for a Donetick task list…"}</p><Button variant="outline" size="sm" onClick={() => props.openAppearance()}>Choose task list</Button></div></Show>
+      <Show when={entity() && !online()}><p class="dt-meta" role="status">Task list unavailable.</p></Show>
       <Show when={online() && !Array.isArray(entity()?.attributes.tasks)}>
         <p role="alert">This list does not expose Donetick task details. Update the Donetick Home Assistant integration.</p>
       </Show>
       <Show when={online() && (!ready() || invalid().length > 0)}>
-        <p class="dt-meta">Open the settings button to select active Donetick users for each gesture. {invalid().length ? `Unavailable user assigned to: ${invalid().map(who => gestureLabels[who]).join(", ")}.` : ""} {!members().length ? "No active circle members reported by this task list." : ""}</p>
+        <div class="dt-setup"><p class="dt-meta">{members().length ? `${members().length} Donetick users found. Choose who completes each gesture.` : "This list has not reported its circle members yet."}</p><Button variant="outline" size="sm" onClick={() => props.openSettings()}>Assign users</Button></div>
       </Show>
       <Show when={online() && Array.isArray(entity()?.attributes.tasks) && !tasks().length}>
         <div class="dt-empty"><Icon icon={props.view === "always" ? "mdi:repeat" : "mdi:check-all"} width={36} /><strong>{props.view === "today" ? "You're all caught up" : props.view === "week" ? "A clear week ahead" : "Nothing on repeat yet"}</strong><p class="dt-meta">{props.view === "always" ? "Add a task with the Always frequency in Donetick." : props.view === "week" ? "No tasks scheduled from tomorrow through the next seven days." : "No tasks due in this view."}</p></div>
@@ -264,23 +250,40 @@ function TaskContent(props: {config: Config; view: View; openSettings: () => voi
 
 export function DonetickWidget(props: {config: Config; view: View}) {
   const ctx = useWidgetContext();
-  const dialog = useWidgetDialog("edit");
-  const entity = useEntity(() => props.config.list?.[0] ?? "");
-  const members = createMemo(() => membersFrom(entity()?.attributes.circle_members));
-  const schema = createMemo(() => settingsSchema(members()));
-  const settings = () => ({...props.config,
-    tapUsername: resolveMember(props.config.tapUsername, members())?.username ?? " ",
-    doubleUsername: resolveMember(props.config.doubleUsername, members())?.username ?? " ",
-    holdUsername: resolveMember(props.config.holdUsername, members())?.username ?? " ",
+  const dialog = useWidgetDialog("controls");
+  const lists = useEntities(() => byDomain().todo ?? []);
+  const selected = useEntity(() => props.config.list?.[0] ?? "");
+  const available = createMemo(() => donetickLists(lists()));
+  const entity = () => props.config.list?.[0] ? selected() : autoList(available());
+  const members = createMemo(() => listMembers(entity(), available()));
+  const update = (value: Partial<Assignments>) => {
+    if (Object.entries(value).some(([key, next]) => props.config[key] !== next)) ctx.updateConfig({...props.config, ...value});
+  };
+  const selectList = (id: string) => {
+    // Never carry completion credit to another Donetick server implicitly.
+    const target = available().find(list => list.id === id);
+    const sameServer = target?.attributes.config_entry_id === entity()?.attributes.config_entry_id;
+    ctx.updateConfig({...props.config, list: [id], ...(!sameServer ? {tapUsername: "", doubleUsername: "", holdUsername: "", assignmentsConfigured: false} : {})});
+  };
+  const people = () => <People config={props.config} members={members()} lists={available()} selectedId={entity()?.id} update={update} selectList={selectList} appearance={() => dialog.openDialog("edit")} />;
+  let prompted = false;
+  createEffect(() => {
+    const mappings = [props.config.tapUsername, props.config.doubleUsername, props.config.holdUsername];
+    const invalid = mappings.some(name => !!name && !resolveMember(name, members()));
+    if (!prompted && entity() && members().length && (invalid || (!props.config.assignmentsConfigured && !mappings.some(name => resolveMember(name, members()))))) {
+      prompted = true;
+      dialog.openDialog("controls");
+    }
   });
   return <>
-    <Widget variant="classic-glass" tone={props.config.tone ?? "info"} class={`dt-widget dt-density-${props.config.density ?? "comfortable"} dt-text-${props.config.textSize ?? "normal"}`}><TaskContent {...props} openSettings={() => dialog.openDialog("edit")} /></Widget>
+    <Widget variant="classic-glass" tone={props.config.tone ?? "neutral"} class={`dt-widget dt-density-${props.config.density ?? "compact"} dt-text-${props.config.textSize ?? "small"}`}><TaskContent {...props} entity={entity} members={members} choosingList={available().length > 1} openSettings={() => dialog.openDialog("controls")} openAppearance={() => dialog.openDialog("edit")} /></Widget>
     <WidgetDialog {...dialogParts} {...dialog.dialogProps} title="Task widget settings"
-      description="Choose a Donetick user for each gesture, or Disabled. After changing the task list, save and reopen settings to load its users."
-      configSchema={schema()} config={settings()} onConfigSave={config => {
-        const saved = {...config};
-        for (const key of ["tapUsername", "doubleUsername", "holdUsername"]) if (saved[key] === " ") saved[key] = "";
-        ctx.updateConfig(saved); dialog.closeDialog();
+      description="Select people from Donetick. Appearance is under Edit."
+      controlsContent={people()} sheet={people} tile={{icon: ICONS[props.view]}}
+      configSchema={appearanceSchema} config={appearanceSchema.parse(props.config)} onConfigSave={config => {
+        const changedList = JSON.stringify(config.list) !== JSON.stringify(props.config.list);
+        ctx.updateConfig({...props.config, ...config, ...(changedList ? {tapUsername: "", doubleUsername: "", holdUsername: "", assignmentsConfigured: false} : {})});
+        dialog.closeDialog();
       }} />
   </>;
 }

@@ -25,8 +25,8 @@ const height = Number(params.get("height")) || 540;
 render(() => <>
   <p style={{"margin-bottom": "24px"}}>Layout preview · sample tasks · no connection to Home Assistant</p>
   <div style={{display: "flex", gap: "24px", "flex-wrap": "wrap"}}>
-    <For each={["today", "week", "always"] as const}>{view => {
-      const [config, setConfig] = createSignal(configSchema.parse({list: ["todo.visual"], holdUsername: "thomas", tone: params.get("tone") || "info", density: params.get("density") || "comfortable", textSize: params.get("text") || "normal"}));
+    <For each={params.has("setup") ? ["today"] as const : ["today", "week", "always"] as const}>{view => {
+      const [config, setConfig] = createSignal(configSchema.parse({list: [], ...(params.has("setup") ? {} : {tapUsername: "noa", holdUsername: "thomas", assignmentsConfigured: true}), tone: params.get("tone") || "neutral", density: params.get("density") || "compact", textSize: params.get("text") || "small"}));
       return <div style={{width: `${width}px`, height: `${height}px`}}><WidgetCtx.Provider value={{dimensions: () => ({width, height}), updateConfig: value => setConfig(configSchema.parse(value))}}><DonetickWidget config={config()} view={view} /></WidgetCtx.Provider></div>;
     }}</For>
   </div>

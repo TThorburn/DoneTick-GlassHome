@@ -1,7 +1,7 @@
 // Local visual fixture only. This adapter is never used by production builds.
 export * from "../../node_modules/@glasshome/widget-sdk/dist/index.js";
 const date = (offset: number) => {const d = new Date(); d.setDate(d.getDate() + offset); return d.toISOString().slice(0, 10);};
-export const fixture = {state: "8", attributes: {
+export const fixture = {id: "todo.visual", friendlyName: "All Tasks", state: "8", attributes: {
   config_entry_id: "visual-only",
   circle_members: [{username: "noa", display_name: "Noa"}, {username: "thomas", display_name: "Thomas"}],
   tasks: [
@@ -15,6 +15,8 @@ export const fixture = {state: "8", attributes: {
   ],
 }};
 export const useEntity = () => () => fixture;
+export const useEntities = () => () => [fixture];
+export const byDomain = () => ({todo: ["todo.visual"]});
 export const useHassConfig = () => () => ({time_zone: "Europe/London"});
 export const useService = () => ({callService: async (_domain: string, _service: string, data: unknown) => {
   // Deliberately disconnected from Home Assistant.
