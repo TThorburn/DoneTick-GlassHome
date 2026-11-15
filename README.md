@@ -42,6 +42,14 @@ Each completion explicitly sends that person's Donetick username and the task's 
 
 Hold duration defaults to **700 ms** (adjustable from 400–2000 ms). Assigning double tap adds a **350 ms** single-tap delay so double tap records one completion. Scrolling cancels the press. Keyboard: Enter or Space taps, Shift+Enter double taps, and Shift+F10 or the context-menu key holds.
 
+### iPad and touch activation
+
+Version 0.4.1 uses native task buttons for taps and the SDK's hold timer for long presses. Touch rows have a minimum 52-pixel target on touch devices. Small finger movements are tolerated; dragging, scrolling, canceled pointers and multi-touch cancel the pending press. Vertical scrolling and pinch zoom remain enabled. Safari text selection and the long-press callout are suppressed on task buttons.
+
+The ring starts when you press, and **Keep holding · [person]** identifies who will receive credit. Once the hold completes, its release cannot also activate a tap. A stationary press released after the threshold still counts as a hold if the browser delayed the timer. The task button is disabled while Home Assistant confirms completion; failures appear on the tile and allow another attempt.
+
+These changes have browser interaction checks and simulated touch tests. Physical iPad/Safari behaviour still needs checking on the device.
+
 ## Appearance and display
 
 Open **People and gestures → Appearance and display**, or edit the tile through GlassHome, to adjust the appearance. The widget's Edit panel includes:

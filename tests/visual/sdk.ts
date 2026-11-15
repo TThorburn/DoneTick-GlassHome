@@ -21,4 +21,8 @@ export const useHassConfig = () => () => ({time_zone: "Europe/London"});
 export const useService = () => ({callService: async (_domain: string, _service: string, data: unknown) => {
   // Deliberately disconnected from Home Assistant.
   console.info("Visual fixture completion", data);
+  const params = new URLSearchParams(location.search);
+  const delay = Number(params.get("latency")) || 0;
+  if (delay > 0) await new Promise(resolve => setTimeout(resolve, Math.min(delay, 5000)));
+  if (params.has("fail")) throw new Error("Simulated Donetick failure — no real tasks changed.");
 }});

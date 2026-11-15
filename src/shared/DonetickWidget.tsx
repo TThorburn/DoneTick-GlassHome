@@ -12,6 +12,7 @@ import { createCompletionGestures, gestureLabels, type CompletionGesture } from 
 import {dueLabel, groupTasks, orderTasks} from "./presentation";
 import {autoList, donetickLists, listMembers, upgradeConfig, type TaskList} from "./discovery";
 import {People, type Assignments} from "./People";
+import {createTaskPress} from "./press";
 import "./tasks.css";
 
 const appearanceSchema = defineConfig({
@@ -59,74 +60,98 @@ function TaskAction(props: {
   holdDelay: number;
   hint: string;
   holdEnabled: boolean;
+  holdName: string;
+  cancelEpoch: number;
+  cancelAll: () => void;
   dateLabel: string;
   overdue: boolean;
   showPoints: boolean;
   complete: (task: Task, who: CompletionGesture) => void;
 }) {
+  const [pressing, setPressing] = createSignal(false);
   const actions = createCompletionGestures({
     doubleEnabled: () => props.doubleEnabled,
     complete: who => props.complete(props.task, who),
   });
-  createEffect(() => {
-    props.task.id; props.disabled; props.pending; props.doubleEnabled; props.holdDelay; props.hint;
-    actions.cancel();
+  const press = createTaskPress({
+    tap: () => {actions.tap(); actions.endPress();},
+    hold: actions.hold, cancel: actions.cancel, pressed: setPressing,
+    holdDelay: () => props.holdDelay,
   });
   const gestures = useWidgetGestures(() => ({
-    tap: actions.tap,
-    hold: {delay: props.holdDelay, action: actions.hold},
+    // Native click handles taps, including Safari and assistive activation.
+    hold: {delay: props.holdDelay, action: press.hold},
   }));
-  onCleanup(() => {actions.cancel(); gestures.dispose();});
+  const cancel = () => {press.cancel(); gestures.dispose();};
+  let firstEffect = true;
+  createEffect(() => {
+    props.task.id; props.disabled; props.pending; props.doubleEnabled; props.holdDelay; props.hint; props.cancelEpoch;
+    if (firstEffect) {firstEffect = false; return;}
+    cancel();
+  });
+  onCleanup(cancel);
   return (
-    <div
-      class="dt-task" role="button" tabIndex={props.disabled || props.pending ? -1 : 0}
+    <Button
+      class="dt-task" type="button" variant="ghost" disabled={props.disabled || props.pending}
       aria-disabled={props.disabled || props.pending}
       aria-busy={props.pending}
       aria-label={`Complete ${props.task.name}. ${props.hint}`}
       ref={gestures.bindElement}
-      style={{"touch-action": gestures.touchAction()}}
-      onPointerDown={(event) => {
-        if (props.disabled || props.pending || event.button !== 0) return;
+      on:pointerdown={(event: PointerEvent) => {
         event.stopPropagation();
+        if (event.isPrimary === false) {props.cancelAll(); cancel(); return;}
+        if (props.disabled || props.pending || !press.down(event)) return;
         actions.beginPress();
         gestures.onPointerDown(event);
-        event.currentTarget.setPointerCapture(event.pointerId);
       }}
-      onPointerMove={gestures.onPointerMove}
-      onPointerUp={(event) => {
+      on:pointermove={(event: PointerEvent) => {
+        // Tolerate finger jitter, but stop the SDK hold once a drag starts.
+        if (press.move(event)) gestures.dispose();
+      }}
+      on:pointerup={(event: PointerEvent) => {
         event.stopPropagation();
+        press.up(event);
         gestures.onPointerUp(event);
-        actions.endPress();
       }}
-      onPointerCancel={event => {actions.cancel(); gestures.onPointerCancel(event);}}
-      onPointerEnter={gestures.onPointerEnter}
-      onKeyDown={(event) => {
+      on:pointercancel={(event: PointerEvent) => {event.stopPropagation(); if (press.cancelPointer(event)) gestures.dispose();}}
+      on:lostpointercapture={(event: PointerEvent) => {if (press.cancelPointer(event)) gestures.dispose();}}
+      on:pointerleave={(event: PointerEvent) => {if (event.pointerType === "mouse" && press.cancelPointer(event)) gestures.dispose();}}
+      on:blur={cancel}
+      on:click={(event: MouseEvent) => {
+        event.stopPropagation();
+        if (!props.disabled && !props.pending) press.click(event.detail);
+      }}
+      on:keydown={(event: KeyboardEvent) => {
         if (props.disabled || props.pending) return;
         event.stopPropagation();
         if (event.repeat) { event.preventDefault(); return; }
         if (event.key === "Enter" && event.shiftKey) {
-          event.preventDefault(); actions.double(); return;
+          event.preventDefault(); cancel(); actions.double(); return;
         }
-        gestures.onKeyDown?.(event);
+        if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+          event.preventDefault(); cancel(); actions.hold(); return;
+        }
+        if (event.key === "Enter" || event.key === " ") {gestures.dispose(); press.keyboard();}
+        if (event.key === "Escape") cancel();
       }}
-      onContextMenu={(event) => {event.preventDefault();}}
+      on:contextmenu={(event: MouseEvent) => {event.preventDefault(); event.stopPropagation();}}
     >
       <span class="dt-check" data-pending={props.pending}>
         <Icon icon={props.pending ? "mdi:progress-clock" : "mdi:checkbox-blank-circle-outline"} width={23} />
-        <Show when={props.holdEnabled && gestures.hold?.()}>
-          <svg class="dt-hold-ring" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" pathLength="1" style={{"animation-duration": `${Math.max(200, props.holdDelay - 100)}ms`}} /></svg>
+        <Show when={props.holdEnabled && pressing()}>
+          <svg class="dt-hold-ring" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" pathLength="1" style={{"animation-duration": `${props.holdDelay}ms`}} /></svg>
         </Show>
       </span>
       <span class="dt-task-copy">
         <span class="dt-task-name">{props.task.name}</span>
-        <Show when={props.dateLabel || props.pending}>
-          <span class="dt-meta dt-date" data-overdue={props.overdue}>{props.pending ? "Completing…" : props.dateLabel}</span>
+        <Show when={props.dateLabel || props.pending || (pressing() && props.holdEnabled)}>
+          <span class="dt-meta dt-date" data-overdue={!pressing() && props.overdue}>{props.pending ? "Completing…" : pressing() && props.holdEnabled ? `Keep holding · ${props.holdName}` : props.dateLabel}</span>
         </Show>
       </span>
       <Show when={props.showPoints && props.task.points !== null}>
         <span class="dt-points"><strong>{props.task.points}</strong><span class="dt-meta">pts</span></span>
       </Show>
-    </div>
+    </Button>
   );
 }
 
@@ -138,6 +163,8 @@ function TaskContent(props: {config: Config; view: View; entity: () => TaskList 
   const [pending, setPending] = createSignal<number[]>([]);
   const [message, setMessage] = createSignal("");
   const [error, setError] = createSignal("");
+  const [cancelEpoch, setCancelEpoch] = createSignal(0);
+  const cancelAll = () => setCancelEpoch(value => value + 1);
   onMount(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000);
     onCleanup(() => clearInterval(timer));
@@ -221,7 +248,7 @@ function TaskContent(props: {config: Config; view: View; entity: () => TaskList 
       <Show when={online() && Array.isArray(entity()?.attributes.tasks) && !tasks().length}>
         <div class="dt-empty"><Icon icon={props.view === "always" ? "mdi:repeat" : "mdi:check-all"} width={36} /><strong>{props.view === "today" ? "You're all caught up" : props.view === "week" ? "A clear week ahead" : "Nothing on repeat yet"}</strong><p class="dt-meta">{props.view === "always" ? "Add a task with the Always frequency in Donetick." : props.view === "week" ? "No tasks scheduled from tomorrow through the next seven days." : "No tasks due in this view."}</p></div>
       </Show>
-      <div class="dt-list" aria-label="Tasks">
+      <div class="dt-list" aria-label="Tasks" onScroll={cancelAll}>
         <For each={visibleGroups().map(group => group.key)}>{key => {
           const initial = visibleGroups().find(group => group.key === key)!;
           const group = () => visibleGroups().find(group => group.key === key) ?? initial;
@@ -230,9 +257,10 @@ function TaskContent(props: {config: Config; view: View; entity: () => TaskList 
           <For each={group().tasks.map(task => task.id)}>{id => {
             const original = group().tasks.find(task => task.id === id)!;
             const task = () => group().tasks.find(task => task.id === id) ?? original;
-            return <div class="dt-item" role="listitem">
+            return <div class="dt-item" role="listitem" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}>
             <TaskAction task={task()} disabled={!ready()} pending={pending().includes(id)}
               doubleEnabled={!!usernames().double} holdDelay={holdDelay()} hint={hint()} holdEnabled={!!performer("hold")}
+              holdName={performer("hold")?.name ?? ""} cancelEpoch={cancelEpoch()} cancelAll={cancelAll}
               dateLabel={props.config.showDates !== false && props.view !== "always" ? dueLabel(task().due, now(), timezone()) : ""}
               overdue={overdue(task())} showPoints={props.config.showPoints !== false}
               complete={(item, who) => {void complete(item, who);}} />
