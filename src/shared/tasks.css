@@ -1,0 +1,42 @@
+.dt-widget .dt-content.dt-content { display: flex; flex-direction: column; gap: .75rem; height: 100%; min-height: 0; overflow: hidden; }
+.dt-heading { display: flex; align-items: flex-start; gap: .4rem; flex-shrink: 0; }
+.dt-heading .glasshome-widget-head { flex: 1; min-width: 0; }
+.dt-heading > button { flex-shrink: 0; }
+.dt-content p { margin: 0; }
+.dt-meta { font-size: var(--widget-text-meta, .75rem); line-height: 1.45; color: var(--muted-foreground); }
+.dt-summary { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .35rem 1rem; font-size: var(--widget-text-sub, .85rem); }
+.dt-summary strong { font-size: 1.25em; font-weight: 650; font-variant-numeric: tabular-nums; }
+.dt-overdue, .dt-group-label[data-overdue="true"], .dt-date[data-overdue="true"] { color: var(--warning); }
+.dt-legend { display: flex; gap: .35rem .6rem; flex-wrap: wrap; }
+.dt-list { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; overscroll-behavior: contain; }
+.dt-group + .dt-group { margin-top: .85rem; }
+.dt-group-label { display: flex; justify-content: space-between; gap: 1rem; padding-block: .4rem; font-size: var(--widget-text-meta, .75rem); font-weight: 650; color: var(--muted-foreground); }
+.dt-group-label span { font-weight: 400; font-variant-numeric: tabular-nums; }
+.dt-item + .dt-item { border-top: 1px solid var(--border); }
+.dt-task { display: flex; align-items: center; gap: .8rem; min-height: 3.6rem; padding-block: .65rem; cursor: pointer; touch-action: pan-y; user-select: none; }
+.dt-task[aria-disabled="true"] { opacity: .6; cursor: default; }
+.dt-task:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.dt-check { position: relative; display: grid; place-items: center; flex: 0 0 2rem; width: 2rem; height: 2rem; color: var(--widget-color, var(--primary)); }
+.dt-task-copy { display: flex; flex-direction: column; gap: .2rem; flex: 1; min-width: 0; }
+.dt-task-name { font-size: var(--widget-text-sub, .9rem); line-height: 1.4; font-weight: 550; overflow-wrap: anywhere; }
+.dt-points { display: flex; flex-direction: column; align-items: flex-end; gap: .05rem; min-width: 2rem; font-variant-numeric: tabular-nums; }
+.dt-points strong { font-size: var(--widget-text-sub, .9rem); font-weight: 600; }
+.dt-points .dt-meta { font-size: .65rem; }
+.dt-empty { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; flex: 1; gap: .7rem; padding-block: 1.25rem; }
+.dt-empty > svg { color: var(--widget-color, var(--primary)); }
+.dt-empty strong { font-size: var(--widget-text-name, 1rem); font-weight: 550; }
+.dt-feedback { display: flex; align-items: flex-start; gap: .45rem; font-size: var(--widget-text-meta, .75rem); line-height: 1.45; overflow-wrap: anywhere; }
+.dt-feedback svg { flex-shrink: 0; }
+.dt-success { color: var(--success); }
+.dt-feedback[role="alert"] { color: var(--destructive); }
+.dt-hold-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); pointer-events: none; }
+.dt-hold-ring circle { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: dt-hold-fill linear forwards; }
+@keyframes dt-hold-fill { to { stroke-dashoffset: 0; } }
+.dt-widget.dt-density-compact .dt-content { gap: .5rem; }
+.dt-density-compact .dt-task { min-height: 2.75rem; padding-block: .4rem; gap: .6rem; }
+.dt-density-compact .dt-group + .dt-group { margin-top: .5rem; }
+.dt-text-small .dt-task-name { font-size: var(--widget-text-meta, .8rem); }
+.dt-text-large .dt-task-name { font-size: calc(var(--widget-text-sub, .9rem) * 1.2); }
+@container widget (max-width: 230px) { .dt-legend { display: none; } .dt-check { flex-basis: 1.6rem; width: 1.6rem; height: 1.6rem; } .dt-task { gap: .5rem; } }
+@container widget (max-height: 240px) { .dt-legend { display: none; } .dt-content { gap: .35rem; } .dt-group-label { padding-block: .2rem; } }
+@media (prefers-reduced-motion: reduce) { .dt-hold-ring circle { animation: none; stroke-dashoffset: 0; } }

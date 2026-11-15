@@ -1,0 +1,24 @@
+{
+  "name": "donetick-glasshome-widgets",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "preview:layout": "vite --config tests/visual/vite.config.ts",
+    "test": "node --test tests/*.test.mjs",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "widget": "glasshome-widget"
+  },
+  "dependencies": {
+    "@glasshome/ui": "1.30.0",
+    "@glasshome/widget-sdk": "1.23.1",
+    "solid-js": "1.9.11"
+  },
+  "devDependencies": {
+    "@glasshome/widget-cli": "0.21.0",
+    "@types/node": "^24.0.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.0.0",
+    "vite-plugin-solid": "^2.11.0"
+  }
+}

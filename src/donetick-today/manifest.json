@@ -1,0 +1,193 @@
+{
+  "name": "Donetick Today",
+  "description": "Tasks due today and overdue, with tap and hold completion attribution.",
+  "icon": "mdi:calendar-check-outline",
+  "minSize": {
+    "h": 3,
+    "w": 3
+  },
+  "maxSize": {
+    "h": 12,
+    "w": 12
+  },
+  "defaultSize": {
+    "h": 5,
+    "w": 4
+  },
+  "sdkVersion": "^1.23.1",
+  "capabilities": [
+    {
+      "domain": "todo",
+      "access": "read"
+    },
+    {
+      "domain": "donetick",
+      "services": [
+        "complete_task"
+      ],
+      "access": "control"
+    }
+  ],
+  "configVersion": 3,
+  "version": "0.3.0",
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "title": {
+        "title": "Title",
+        "description": "Optional display name override",
+        "type": "string"
+      },
+      "list": {
+        "default": [],
+        "domain": "todo",
+        "title": "Donetick task list",
+        "description": "Choose All Tasks to include everyone.",
+        "singleSelect": true,
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "tapUsername": {
+        "default": "noa",
+        "title": "Single tap user",
+        "description": "Use the tile's settings button to select a Donetick user.",
+        "type": "string"
+      },
+      "doubleUsername": {
+        "title": "Double tap user",
+        "type": "string"
+      },
+      "holdUsername": {
+        "title": "Long hold user",
+        "type": "string"
+      },
+      "holdDelay": {
+        "default": 700,
+        "title": "Long hold duration (milliseconds)",
+        "type": "number",
+        "minimum": 400,
+        "maximum": 2000
+      },
+      "includeOverdue": {
+        "default": true,
+        "title": "Include overdue tasks in Today",
+        "type": "boolean"
+      },
+      "tone": {
+        "default": "info",
+        "title": "Accent colour",
+        "labels": {
+          "neutral": "Neutral",
+          "accent": "Home accent",
+          "info": "Blue",
+          "success": "Green",
+          "warning": "Amber"
+        },
+        "type": "string",
+        "enum": [
+          "neutral",
+          "accent",
+          "info",
+          "success",
+          "warning"
+        ]
+      },
+      "density": {
+        "default": "comfortable",
+        "title": "Row spacing",
+        "labels": {
+          "comfortable": "Comfortable",
+          "compact": "Compact"
+        },
+        "type": "string",
+        "enum": [
+          "comfortable",
+          "compact"
+        ]
+      },
+      "textSize": {
+        "default": "normal",
+        "title": "Task text size",
+        "labels": {
+          "small": "Small",
+          "normal": "Normal",
+          "large": "Large"
+        },
+        "type": "string",
+        "enum": [
+          "small",
+          "normal",
+          "large"
+        ]
+      },
+      "sortOrder": {
+        "default": "due",
+        "title": "Task order",
+        "labels": {
+          "due": "Due date",
+          "name": "Alphabetical",
+          "points": "Highest points"
+        },
+        "type": "string",
+        "enum": [
+          "due",
+          "name",
+          "points"
+        ]
+      },
+      "groupByDate": {
+        "default": true,
+        "title": "Group tasks by day",
+        "description": "Sort order applies within each group. Always Available remains a single list.",
+        "type": "boolean"
+      },
+      "showPoints": {
+        "default": true,
+        "title": "Show task points",
+        "type": "boolean"
+      },
+      "showDates": {
+        "default": true,
+        "title": "Show due dates on rows",
+        "type": "boolean"
+      },
+      "showGestures": {
+        "default": true,
+        "title": "Show gesture guide",
+        "type": "boolean"
+      },
+      "taskLimit": {
+        "default": 30,
+        "title": "Maximum visible tasks",
+        "description": "Extra tasks stay in Donetick; the tile shows how many are hidden.",
+        "type": "number",
+        "minimum": 1,
+        "maximum": 100
+      }
+    },
+    "required": [
+      "list",
+      "tapUsername",
+      "holdDelay",
+      "includeOverdue",
+      "tone",
+      "density",
+      "textSize",
+      "sortOrder",
+      "groupByDate",
+      "showPoints",
+      "showDates",
+      "showGestures",
+      "taskLimit"
+    ],
+    "additionalProperties": false
+  },
+  "defaultConfig": {
+    "list": [],
+    "tapUsername": "noa",
+    "includeOverdue": true
+  }
+}
